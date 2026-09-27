@@ -5,6 +5,24 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <unistd.h>
+#include <pthread.h>
+void* clientConnection(void* args){
+	int* clientfdp = (int*) args;
+	int clientfd = *clientfdp;			
+	printf("Connection with client started\n");
+		
+	char buffer[1024];
+
+	int n = recv(clientfd, buffer, sizeof(buffer) - 1, 0);
+
+	if(n>0){
+		buffer[n] = '\0';
+		printf("client says; %s\n", buffer);
+
+	}
+	close(clientfd);
+	printf("COnnetion with client ended\n");
+}
 
 int main(int agrc, char *argv[]){
 	struct sockaddr_in my_addr;
@@ -30,29 +48,18 @@ int main(int agrc, char *argv[]){
 
 	struct sockaddr_in client_addr;
 	socklen_t client_len = sizeof(client_addr);
-	while(true){	
-	int clientfd = accept(sockfd, (struct sockaddr *) &client_addr, &client_len);
+		while(true){	
+		int clientfd = accept(sockfd, (struct sockaddr *) &client_addr, &client_len);
 	
-	if (clientfd < 0 ){
-		perror("no brah");
-		close(sockfd);
-		exit(1);
+		if (clientfd < 0 ){
+			perror("no brah");
+			close(sockfd);
+			exit(1);
 
-	}
-
-	printf("Connection with client started\n");
-
-	char buffer[1024];
-
-	int n = recv(clientfd, buffer, sizeof(buffer) - 1, 0);
-
-	if(n>0){
-		buffer[n] = '\0';
-		printf("client says; %s\n", buffer);
-
-	}
-	close(clientfd);
-	printf("COnnetion with client ended\n");
+		}
+		pthread_t clientThread;
+		pthread_create(&clientThread, NULL, clientConnection, &clientfd);
+		
 	}
 	close(sockfd);
 	return 0;
