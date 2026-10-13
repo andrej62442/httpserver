@@ -5,7 +5,26 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-
+#include <string.h>
+#include <pthread.h>
+#define PORT 5003
+bool recvDataState = false;
+void* recvData(void* args){
+	while(true){
+		recvDataState = true;
+		int* serverfdp = (int*) args;
+		int serverfd = *serverfdp;
+		char buffer[1024];
+		int n = recv(serverfd, buffer, sizeof(buffer) - 1, 0);
+		if(!(n>0)){
+			printf("%s\n", "Failed to fetch message");
+			break;
+		}
+		buffer[n] = '\0';
+		printf("%s\n", buffer);
+	}
+	recvDataState = false;
+}
 int main(){
 	struct sockaddr_in server_addr;
 	int sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -16,7 +35,7 @@ int main(){
 	memset(&server_addr, 0, sizeof(server_addr));
 
 	server_addr.sin_family = AF_INET;
-	server_addr.sin_port = htons(5100);
+	server_addr.sin_port = htons(PORT);
 	int conn = inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr);
 	if(conn <= 0){
 		perror("Invalid server adress");
@@ -29,14 +48,22 @@ int main(){
 		close(sockfd);
 		exit(1);
 	}
-	char message[50];
-	scanf("%s", &message);
-	int sendMessage = send(sockfd, message, strlen(message), 0);
-	
-	if(sendMessage < 0){
-		perror("Send failed");
-	}
-	close(sockfd);
+	pthread_t recvThread;
+	pthread_create(&recvThread, NULL, recvData, &sockfd);
+	printf("%s\n", "type exit in order to stop the connection");
+	while(true){
+		char message[50];
+		char exitMsg[50] = "exit";
+		scanf("%s", &message);
+		int sendMessage = send(sockfd, message, strlen(message), 0);
+		if(strcmp(message, exitMsg) == 0){
+			close(sockfd);
+			break;
+		}
 
+		if(sendMessage < 0){
+			perror("Send failed");
+		}
+	}
 	return 0;
 }
