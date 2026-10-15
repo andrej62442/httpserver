@@ -7,6 +7,7 @@
 #include <netinet/in.h>
 #include <string.h>
 #include <pthread.h>
+#include <ctype.h>
 #define PORT 5003
 bool recvDataState = false;
 void* recvData(void* args){
@@ -36,7 +37,7 @@ int main(){
 
 	server_addr.sin_family = AF_INET;
 	server_addr.sin_port = htons(PORT);
-	int conn = inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr);
+	int conn = inet_pton(AF_INET, "192.168.0.151", &server_addr.sin_addr);
 	if(conn <= 0){
 		perror("Invalid server adress");
 		close(sockfd);
@@ -51,10 +52,14 @@ int main(){
 	pthread_t recvThread;
 	pthread_create(&recvThread, NULL, recvData, &sockfd);
 	printf("%s\n", "type exit in order to stop the connection");
+	fflush(stdout);
 	while(true){
 		char message[50];
 		char exitMsg[50] = "exit";
-		scanf("%s", &message);
+		if(!(fgets(message, sizeof message, stdin) != NULL)){
+			continue;
+		}
+		message[strcspn(message, "\n")] = '\0';
 		int sendMessage = send(sockfd, message, strlen(message), 0);
 		if(strcmp(message, exitMsg) == 0){
 			close(sockfd);

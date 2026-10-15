@@ -10,7 +10,7 @@
 #define MAX_CLIENTS 10
 #define PORT 5003
 int clientCount = 0;
-int clients[3];
+int clients[MAX_CLIENTS];
 struct msgData{
 	int* clientfdp;
 	char msg[1024];
