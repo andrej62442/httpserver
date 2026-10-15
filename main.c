@@ -1,84 +1,37 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/socket.h>
-#include <sys/socket.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
+#include <fcntl.h>
+#include <sys/time.h>
+#include <sys/types.h>
 #include <netinet/tcp.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <string.h>
+#include <sys/ioctl.h>
 #define MAX_CLIENTS 10
 #define PORT 5003
 int clientCount = 0;
 int clients[MAX_CLIENTS];
-struct msgData{
-	int* clientfdp;
-	char msg[1024];
-};
-
-
-void sendMessages(struct msgData data){
-	for (int i = 0;i<clientCount;i++){
-		
-		if(clients[i] == *data.clientfdp){
-			continue;
-		}
-		int sendMessage = send(clients[i], data.msg, strlen(data.msg), 0);
-		if(sendMessage<0){
-			printf("%s\n", "haha gg bozo");
-		}else{
-			printf("%s\n", "Message sent to a client");
-		}
-	}
-}
 
 
 
-int searchClientID(int sClientfd){
+int removeClientFromArray(int sClientfd){
+	int index;
 	for(int i = 0; i < clientCount;i++){
 		if(clients[i] == sClientfd){
-			return i;
+			index = i;
+			break;
 		}
+	return -1;
 	}
-}
-
-
-
-void removeClientFromArray(int index){
 	for (int i = index; i < clientCount - 1;i++){
 		clients[i] = clients[i+1];
 	}
 	clientCount--;
-}
-
-
-
-void* recvMessage(void* args){
-	int* clientfdp = (int*) args;
-	int clientfd = *clientfdp;			
-	printf("Connection with client started\n");
-	while(true){
-	
-		char buffer[1024];
-		int n = recv(clientfd, buffer, sizeof(buffer) - 1, 0);
-		
-		if(n>0){	
-
-			buffer[n] = '\0';
-			printf("client says: %s\n", buffer);
-			struct msgData data;
-			strcpy(data.msg, buffer);
-			data.clientfdp = clientfdp;
-			sendMessages(data);		
-		}else{
-			break;
-		}
-	}	
-	close(clientfd);
-	printf("%s\n","closed the socket!");
-	int clientID = searchClientID(clientfd);
-	removeClientFromArray(clientID);
-	printf("Connetion with client ended\n");
+	return 0;
 }
 
 
@@ -89,39 +42,94 @@ int main(int agrc, char *argv[]){
 	if(sockfd < 0){
 		printf("sokcet creation failed!");
 	}
+
 	my_addr.sin_family = AF_INET;
 	my_addr.sin_port = htons(PORT);
-
 	my_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+
 	int Bind = bind(sockfd, (struct sockaddr *) &my_addr, sizeof(my_addr));
 	if(Bind < 0){
 		printf("Binding failed!");
 	}
+
 	int listening = listen(sockfd, 5);
 	if(listening < 0){
 		perror("no");
 		close(sockfd);
 		exit(1);
 	}
+
 	printf("WAITING FOR A CLIENT\n");
 
 	struct sockaddr_in client_addr;
-	socklen_t client_len = sizeof(client_addr);
-		while(true){	
-		int clientfd = accept(sockfd, (struct sockaddr *) &client_addr, &client_len);
-		if(clientCount >= MAX_CLIENTS){
-			break;
-		}
-		if (clientfd < 0 ){
-			printf("%s\n", "Client failed to connect");
-			close(clientfd);
-			break;
-		}
-		printf("%d\n", clientfd);
-		clients[clientCount++] = clientfd;
-		pthread_t recvThread;
-		pthread_create(&recvThread, NULL, recvMessage, &clients[clientCount - 1]);
+
+
+	fd_set read_fds;
+
+	FD_ZERO(&read_fds);
+	while(true){
+		FD_SET(sockfd, &read_fds);
 		
+		int result = select(FD_SETSIZE, &read_fds, (fd_set*) 0, (fd_set*) 0, (struct timeval*) 0);
+
+		if(result<0){
+			perror("Failed to select");
+			exit(1);
+		}	
+
+		for(int fd = 0; fd<FD_SETSIZE;fd++){
+			if(FD_ISSET(fd, &read_fds)){
+				if(fd == sockfd){
+					socklen_t client_len = sizeof(client_addr);
+
+					int clientfd = accept(sockfd, (struct sockaddr *) &client_addr, &client_len);
+					if(clientCount >= MAX_CLIENTS){
+						char buffer[1024] = "no fuck you lmao\0";
+						send(clientfd, buffer, strlen(buffer) - 1, 0);
+						close(clientfd);
+					}
+					if (clientfd < 0 ){
+						printf("%s\n", "Client failed to connect");
+						close(clientfd);
+					}
+
+					printf("Connection with client started\n");
+					printf("%d\n", clientfd);
+					clients[clientCount++] = clientfd;
+
+					FD_SET(clientfd, &read_fds);
+					printf("%s\n", "Added the client to file descriptors!");
+				}else{
+					int nread;
+					ioctl(fd, FIONREAD, &nread);
+					if(nread == 0){
+						removeClientFromArray(fd);
+						FD_CLR(fd, &read_fds);
+					}else{
+						char buffer[1024];
+						int n = recv(fd, buffer, strlen(buffer), 0);
+						if(n<0){
+							printf("%s\n", "Client failed to get the message lmao");
+							continue;
+						}
+						buffer[n] = '\0';
+						for(int i = 0;i<clientCount;i++){
+							if(clients[i] == fd){
+								printf("%s\n", "Skipped a message");
+								continue;
+							}
+							int s = send(fd, buffer, strlen(buffer), 0);
+							if(s<0){
+								printf("%s\n", "Failed to send the message to a client");
+								continue;
+							}
+							printf("%s\n", "Sent message to a client");
+						}
+					}
+				}
+			}
+		}
+
 	}
 	close(sockfd);
 	return 0;
