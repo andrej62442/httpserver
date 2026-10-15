@@ -1,1 +1,5 @@
-.swo .swp client main
+*.swo
+*.swp
+client
+main
+*.out
