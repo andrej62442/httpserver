@@ -65,27 +65,31 @@ int main(int agrc, char *argv[]){
 
 
 	fd_set read_fds;
+	fd_set temp_fds;
 
 	FD_ZERO(&read_fds);
+	FD_ZERO(&temp_fds);
 	while(true){
 		FD_SET(sockfd, &read_fds);
+		FD_SET(sockfd, &temp_fds);
 		
-		int result = select(FD_SETSIZE, &read_fds, (fd_set*) 0, (fd_set*) 0, (struct timeval*) 0);
-
+		int result = select(MAX_CLIENTS, &temp_fds, (fd_set*) 0, (fd_set*) 0, (struct timeval*) 0);
+		printf("Activity detected\n");
 		if(result<0){
 			perror("Failed to select");
 			exit(1);
-		}	
-
-		for(int fd = 0; fd<FD_SETSIZE;fd++){
-			if(FD_ISSET(fd, &read_fds)){
-				if(fd == sockfd){
+		}
+		for(int fd = 0; fd<MAX_CLIENTS + 10;fd++){
+			printf("%d\n", fd);
+			if(FD_ISSET(fd, &temp_fds)){
+				printf("%d is set in the fd_set\n", fd);
+				if(fd == sockfd){ // if the data comes from the serve socket (client connection pending)
 					socklen_t client_len = sizeof(client_addr);
 
 					int clientfd = accept(sockfd, (struct sockaddr *) &client_addr, &client_len);
 					if(clientCount >= MAX_CLIENTS){
 						char buffer[1024] = "no fuck you lmao\0";
-						send(clientfd, buffer, strlen(buffer) - 1, 0);
+						send(clientfd, buffer, strlen(buffer) + 1, 0);
 						close(clientfd);
 					}
 					if (clientfd < 0 ){
@@ -99,12 +103,16 @@ int main(int agrc, char *argv[]){
 
 					FD_SET(clientfd, &read_fds);
 					printf("%s\n", "Added the client to file descriptors!");
+					break;
 				}else{
+					printf("%s\n", "got to the client stuff");
 					int nread;
 					ioctl(fd, FIONREAD, &nread);
 					if(nread == 0){
+						printf("%s\n", "Client has been disconnected");
 						removeClientFromArray(fd);
 						FD_CLR(fd, &read_fds);
+						close(fd);
 					}else{
 						char buffer[1024];
 						int n = recv(fd, buffer, strlen(buffer), 0);
@@ -118,7 +126,7 @@ int main(int agrc, char *argv[]){
 								printf("%s\n", "Skipped a message");
 								continue;
 							}
-							int s = send(fd, buffer, strlen(buffer), 0);
+							int s = send(clients[i], buffer, strlen(buffer), 0);
 							if(s<0){
 								printf("%s\n", "Failed to send the message to a client");
 								continue;
@@ -129,6 +137,8 @@ int main(int agrc, char *argv[]){
 				}
 			}
 		}
+		printf("The end of the activity\n");
+		temp_fds = read_fds;
 
 	}
 	close(sockfd);
