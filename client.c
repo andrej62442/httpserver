@@ -27,11 +27,12 @@ void* recvData(void* args){
 		if(end_of_message == NULL){
 			strcat(message, buffer);
 		}else{
-			int end_location = end_of_message - message;
-			printf("%d\n", end_location);
-			char temp_message[1024];
-			strcpy(temp_message, message);
-			message[end_location] = '\0';
+			strcat(message,buffer);
+			//int end_location = end_of_message - message;
+			//printf("%d\n", end_location);
+			//char temp_message[1024];
+			//strcpy(temp_message, message);
+			//message[end_location] = '\0';
 			printf("%s\n", message);
 			strcpy(message, "\0");
 		}
