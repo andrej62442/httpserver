@@ -16,13 +16,25 @@ void* recvData(void* args){
 		int* serverfdp = (int*) args;
 		int serverfd = *serverfdp;
 		char buffer[1024];
+		char message[1024];
 		int n = recv(serverfd, buffer, sizeof(buffer) - 1, 0);
 		if(!(n>0)){
 			printf("%s\n", "Failed to fetch message");
 			break;
 		}
 		buffer[n] = '\0';
-		printf("%s\n", buffer);
+		char* end_of_message = strchr(buffer, 3);
+		if(end_of_message == NULL){
+			strcat(message, buffer);
+		}else{
+			int end_location = end_of_message - message;
+			printf("%d\n", end_location);
+			char temp_message[1024];
+			strcpy(temp_message, message);
+			message[end_location] = '\0';
+			printf("%s\n", message);
+			strcpy(message, "\0");
+		}
 	}
 	recvDataState = false;
 }
@@ -59,7 +71,9 @@ int main(){
 		if(!(fgets(message, sizeof message, stdin) != NULL)){
 			continue;
 		}
-		message[strcspn(message, "\n")] = '\0';
+		int new_line_pos = strcspn(message, "\n");
+		message[new_line_pos] = 3;
+		message[new_line_pos + 1] = '\0';
 		int sendMessage = send(sockfd, message, strlen(message), 0);
 		if(strcmp(message, exitMsg) == 0){
 			close(sockfd);
