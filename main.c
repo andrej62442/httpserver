@@ -11,6 +11,7 @@
 #include <pthread.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <stdbool.h>
 #define MAX_CLIENTS 10
 #define PORT 5003
 int clientCount = 0;
@@ -35,7 +36,7 @@ int removeClientFromArray(int sClientfd){
 		return -1;
 	}
 	printf("The index of the removed client is %d\n", index);
-	for (int i = index; i < clientCount;i++){
+	for (int i = index; i < clientCount - 1;i++){
 		printf("a client has been shifted in the clients array\n");
 		clients[i] = clients[i+1];
 	}
@@ -65,14 +66,17 @@ int manage_setted_fds(int fd){
 	if(fd == sockfd){ 
 		socklen_t client_len = sizeof(client_addr);
 		int clientfd = accept(sockfd, (struct sockaddr *) &client_addr, &client_len);
+
+		if (clientfd < 0 ){
+			printf("%s\n", "Client failed to connect");
+			close(clientfd);
+			return 1;
+		}
 		if(clientCount >= MAX_CLIENTS){
 			char buffer[1024] = "no fuck you lmao\0";
 			send(clientfd, buffer, strlen(buffer) + 1, 0);
 			close(clientfd);
-		}
-		if (clientfd < 0 ){
-			printf("%s\n", "Client failed to connect");
-			close(clientfd);
+			return 1;
 		}
 
 		printf("Connection with client started\n");
@@ -85,10 +89,13 @@ int manage_setted_fds(int fd){
 	} 	
 	// otherwise if the data comes from the client socket, recieve the data
 
+	char buffer[1024];
 	printf("%s\n", "got to the client stuff");
 	int nread;
 	ioctl(fd, FIONREAD, &nread);
-	if(nread == 0){
+	int n = recv(fd, buffer, strlen(buffer) - 1, 0);
+	if((nread == 0) && (n == 0)){
+
 		printf("Client has been disconnected with fd number %d\n", fd);
 		int deletion_result = removeClientFromArray(fd);
 		if(deletion_result < 0){
@@ -99,20 +106,19 @@ int manage_setted_fds(int fd){
 		close(fd);
 		return 1;
 	}
-	char buffer[1024];
-	int n = recv(fd, buffer, strlen(buffer), 0);
 	if(n<0){
 		printf("%s\n", "Client failed to get the message lmao");
 		return 1;
 	}
 	buffer[n] = '\0';
 	send_to_all(buffer, fd);
+	return 0;
 }
 	
 
 void manage_FD_sets(){
 	printf("Activity detected\n");
-	for(int fd = 0; fd<MAX_CLIENTS + 10;fd++){
+	for(int fd = 0; fd<=FD_SETSIZE;fd++){
 		if(!(FD_ISSET(fd, &temp_fds))){
 			continue;
 		}
@@ -158,7 +164,7 @@ int main(int agrc, char *argv[]){
 	while(true){
 		FD_SET(sockfd, &read_fds);
 		FD_SET(sockfd, &temp_fds);
-		int result = select(MAX_CLIENTS, &temp_fds, (fd_set*) 0, (fd_set*) 0, (struct timeval*) 0);
+		int result = select(FD_SETSIZE, &temp_fds, (fd_set*) 0, (fd_set*) 0, (struct timeval*) 0);
 		
 		if(result<0){
 			printf("Failed to select. Retrying\n");
