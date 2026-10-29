@@ -93,7 +93,7 @@ int manage_setted_fds(int fd){
 	printf("%s\n", "got to the client stuff");
 	int nread;
 	ioctl(fd, FIONREAD, &nread);
-	int n = recv(fd, buffer, strlen(buffer) - 1, 0);
+	int n = recv(fd, buffer, sizeof(buffer) - 1, 0);
 	if((nread == 0) && (n == 0)){
 
 		printf("Client has been disconnected with fd number %d\n", fd);
@@ -118,7 +118,7 @@ int manage_setted_fds(int fd){
 
 void manage_FD_sets(){
 	printf("Activity detected\n");
-	for(int fd = 0; fd<=FD_SETSIZE;fd++){
+	for(int fd = 0; fd<FD_SETSIZE;fd++){
 		if(!(FD_ISSET(fd, &temp_fds))){
 			continue;
 		}
@@ -140,6 +140,7 @@ int main(int agrc, char *argv[]){
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);
 	if(sockfd < 0){
 		printf("sokcet creation failed!");
+		return 1;
 	}
 
 	my_addr.sin_family = AF_INET;
@@ -149,6 +150,7 @@ int main(int agrc, char *argv[]){
 	int Bind = bind(sockfd, (struct sockaddr *) &my_addr, sizeof(my_addr));
 	if(Bind < 0){
 		printf("Binding failed!");
+		return 1;
 	}
 
 	int listening = listen(sockfd, 5);
