@@ -8,6 +8,8 @@
 #include <string.h>
 #include <pthread.h>
 #include <ctype.h>
+#include <stdint.h>
+#define BUFF_LEN_OFFSET 4
 #define PORT 5003
 bool recvDataState = false;
 void* recvData(void* args){
@@ -16,26 +18,16 @@ void* recvData(void* args){
 		int* serverfdp = (int*) args;
 		int serverfd = *serverfdp;
 		char buffer[1024];
-		char message[1024];
+	char message[1024];
 		int n = recv(serverfd, buffer, sizeof(buffer) - 1, 0);
 		if(!(n>0)){
 			printf("%s\n", "Failed to fetch message");
 			break;
 		}
 		buffer[n] = '\0';
-		char* end_of_message = strchr(buffer, 3);
-		if(end_of_message == NULL){
-			strcat(message, buffer);
-		}else{
-			strcat(message,buffer);
-			//int end_location = end_of_message - message;
-			//printf("%d\n", end_location);
-			//char temp_message[1024];
-			//strcpy(temp_message, message);
-			//message[end_location] = '\0';
-			printf("%s\n", message);
-			strcpy(message, "\0");
-		}
+		printf("%s\n", buffer);
+		int empty[1024];
+		memcpy(buffer, empty, 1024);
 	}
 	recvDataState = false;
 }
@@ -67,23 +59,36 @@ int main(){
 	printf("%s\n", "type exit in order to stop the connection");
 	fflush(stdout);
 	while(true){
-		char message[50];
-		char exitMsg[50] = "exit";
+		char message[1020];
+		char exitMsg[5] = "exit";
 		if(!(fgets(message, sizeof message, stdin) != NULL)){
 			continue;
 		}
 		int new_line_pos = strcspn(message, "\n");
-		message[new_line_pos] = 3;
-		message[new_line_pos + 1] = '\0';
-		int sendMessage = send(sockfd, message, strlen(message), 0);
+		message[new_line_pos] = '\0';
+		uint8_t buffer[1024];
+		//for(int i = BUFF_LEN_OFFSET;i<strlen(message) + BUFF_LEN_OFFSET + 1;i++){
+		//	buffer[i] = message[i - BUFF_LEN_OFFSET - 1];
+		//}
 		if(strcmp(message, exitMsg) == 0){
 			close(sockfd);
 			break;
 		}
-
-		if(sendMessage < 0){
-			perror("Send failed");
-		}
+		uint32_t buffLen = (uint32_t)strlen(message);
+		uint32_t fullLen = buffLen + BUFF_LEN_OFFSET;
+		buffer[0] = (uint8_t)(fullLen >> 0) & 0xFF;
+		buffer[1] = (uint8_t)(fullLen >> 8) & 0xFF;
+		buffer[2] = (uint8_t)(fullLen >> 16) & 0xFF;
+		buffer[3] = (uint8_t)(fullLen >> 24) & 0xFF;
+		memcpy(buffer + BUFF_LEN_OFFSET, message, buffLen);
+		size_t total_sent = 0;
+		while (total_sent < fullLen) {
+    		ssize_t n = send(sockfd, buffer + total_sent, fullLen - total_sent, 0);
+			if(n<=0){
+				break;
+			}
+			total_sent += (size_t)n;
+		}	
 	}
 	return 0;
 }

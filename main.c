@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -14,6 +15,12 @@
 #include <stdbool.h>
 #define MAX_CLIENTS 10
 #define PORT 5003
+#define BUFF_LEN_OFFSET 4
+struct client_msg{
+	uint8_t buffer[1024];
+	uint32_t len;
+	char string_buffer[1024];
+};
 int clientCount = 0;
 int clients[MAX_CLIENTS];
 int sockfd;
@@ -89,29 +96,73 @@ int manage_setted_fds(int fd){
 	} 	
 	// otherwise if the data comes from the client socket, recieve the data
 
-	char buffer[1024];
 	printf("%s\n", "got to the client stuff");
 	int nread;
 	ioctl(fd, FIONREAD, &nread);
-	int n = recv(fd, buffer, sizeof(buffer) - 1, 0);
-	if((nread == 0) && (n == 0)){
-
+	if(nread == 0){
 		printf("Client has been disconnected with fd number %d\n", fd);
 		int deletion_result = removeClientFromArray(fd);
 		if(deletion_result < 0){
 			printf("Didn't find the client inside the array\n");
+			return 1;
 		}
 		FD_CLR(fd, &read_fds);
 		FD_CLR(fd, &temp_fds);
 		close(fd);
-		return 1;
+		return 0;
 	}
-	if(n<0){
-		printf("%s\n", "Client failed to get the message lmao");
-		return 1;
+	// here ladies and gentelmen we have to kill ourselves trying to do this fucking shit
+	// oh my god who the hell though it was a good idea
+	struct client_msg client_response;
+	client_response.len = -1;
+	uint32_t currentBytes = 0;
+	bool gotBufferSize = false;
+	while(1){
+		uint8_t tempBuffer[1024];
+		printf("Created a tempBuffer\n");
+		int n = recv(fd, tempBuffer, sizeof(tempBuffer) - 1, 0);
+		if(n<0){
+			printf("%s\n", "Client failed to get the message lmao");
+			return 1;
+		}
+		printf("Recieved buffer %d bytes\n", n);
+		uint32_t oldBytes = currentBytes;
+		currentBytes += n;
+		printf("Current bytes set to %u\n", currentBytes);
+		for(int j = oldBytes; j < currentBytes;j++){
+			client_response.buffer[j] = tempBuffer[j - oldBytes];
+		}
+		printf("Got the tempBuffer info to the actual buffer\n");
+		if(currentBytes>=4 && !gotBufferSize){
+			uint8_t b1 = client_response.buffer[0];
+			uint8_t b2 = client_response.buffer[1];
+			uint8_t b3 = client_response.buffer[2];
+			uint8_t b4 = client_response.buffer[3];
+			client_response.len = ((uint32_t) b4 << 24) |
+								  ((uint32_t) b3 << 16) |
+								  ((uint32_t) b2 << 8) |
+								  (uint32_t) b1;
+			gotBufferSize = !gotBufferSize;
+			printf("Set buffer size to %u\n", client_response.len);
+		}
+		if(client_response.len != -1){
+			if(client_response.len <= currentBytes){
+				printf("Went out of the buffer reading stage\n");
+				break;
+			}
+		}
 	}
-	buffer[n] = '\0';
-	send_to_all(buffer, fd);
+	if(currentBytes > client_response.len){
+		printf("How the fuck did that happen\n");
+	}
+	for(int j = 0; j < client_response.len - BUFF_LEN_OFFSET;j++){
+		client_response.string_buffer[j] = client_response.buffer[j + BUFF_LEN_OFFSET];
+	}
+	client_response.string_buffer[currentBytes - BUFF_LEN_OFFSET] = '\0';
+	printf("Put the string part of the buffer into string_buffer. reads %s\n", client_response.string_buffer);
+	send_to_all(client_response.string_buffer, fd);
+	uint8_t empty[1024];
+	memcpy(client_response.buffer, empty, 1024);
 	return 0;
 }
 	
