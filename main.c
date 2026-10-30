@@ -138,10 +138,10 @@ int manage_setted_fds(int fd){
 			uint8_t b2 = client_response.buffer[1];
 			uint8_t b3 = client_response.buffer[2];
 			uint8_t b4 = client_response.buffer[3];
-			client_response.len = ((uint32_t) b4 << 24) |
-								  ((uint32_t) b3 << 16) |
-								  ((uint32_t) b2 << 8) |
-								  (uint32_t) b1;
+			client_response.len = ((uint32_t) b1 << 24) |
+								  ((uint32_t) b2 << 16) |
+								  ((uint32_t) b3 << 8) |
+								  (uint32_t) b4;
 			gotBufferSize = !gotBufferSize;
 			printf("Set buffer size to %u\n", client_response.len);
 		}

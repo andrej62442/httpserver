@@ -76,10 +76,10 @@ int main(){
 		}
 		uint32_t buffLen = (uint32_t)strlen(message);
 		uint32_t fullLen = buffLen + BUFF_LEN_OFFSET;
-		buffer[0] = (uint8_t)(fullLen >> 0) & 0xFF;
-		buffer[1] = (uint8_t)(fullLen >> 8) & 0xFF;
-		buffer[2] = (uint8_t)(fullLen >> 16) & 0xFF;
-		buffer[3] = (uint8_t)(fullLen >> 24) & 0xFF;
+		buffer[3] = (uint8_t)(fullLen >> 0) & 0xFF;
+		buffer[2] = (uint8_t)(fullLen >> 8) & 0xFF;
+		buffer[1] = (uint8_t)(fullLen >> 16) & 0xFF;
+		buffer[0] = (uint8_t)(fullLen >> 24) & 0xFF;
 		memcpy(buffer + BUFF_LEN_OFFSET, message, buffLen);
 		size_t total_sent = 0;
 		while (total_sent < fullLen) {
